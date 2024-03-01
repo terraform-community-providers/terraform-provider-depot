@@ -387,6 +387,7 @@ func (r *TrustPolicyResource) Delete(ctx context.Context, req resource.DeleteReq
 
 	_, err := r.client.RemoveTrustPolicy(ctx, &connect.Request[corev1.RemoveTrustPolicyRequest]{
 		Msg: &corev1.RemoveTrustPolicyRequest{
+			ProjectId:     data.ProjectId.ValueString(),
 			TrustPolicyId: data.Id.ValueString(),
 		},
 	})
