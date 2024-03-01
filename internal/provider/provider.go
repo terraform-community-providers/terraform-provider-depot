@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"regexp"
 
 	"buf.build/gen/go/depot/api/connectrpc/go/depot/core/v1/corev1connect"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -18,10 +17,6 @@ var (
 	envVarName          = "DEPOT_TOKEN"
 	errMissingAuthToken = "Required token could not be found. Please set the token using an input variable in the provider configuration block or by using the `" + envVarName + "` environment variable."
 )
-
-func idRegex() *regexp.Regexp {
-	return regexp.MustCompile("^[-0-9a-z]+$")
-}
 
 var _ provider.Provider = &DepotProvider{}
 
@@ -93,6 +88,7 @@ func (p *DepotProvider) Configure(ctx context.Context, req provider.ConfigureReq
 func (p *DepotProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewProjectResource,
+		NewTrustPolicyResource,
 	}
 }
 

@@ -3,6 +3,9 @@ module github.com/terraform-community-providers/terraform-provider-depot
 go 1.19
 
 require (
+	buf.build/gen/go/depot/api/connectrpc/go v1.15.0-20240221184445-e8316610338f.1
+	buf.build/gen/go/depot/api/protocolbuffers/go v1.32.0-20240221184445-e8316610338f.1
+	connectrpc.com/connect v1.15.0
 	github.com/hashicorp/terraform-plugin-docs v0.14.1
 	github.com/hashicorp/terraform-plugin-framework v1.2.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.10.0
@@ -12,9 +15,6 @@ require (
 )
 
 require (
-	buf.build/gen/go/depot/api/connectrpc/go v1.15.0-20240221184445-e8316610338f.1 // indirect
-	buf.build/gen/go/depot/api/protocolbuffers/go v1.32.0-20240221184445-e8316610338f.1 // indirect
-	connectrpc.com/connect v1.15.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect

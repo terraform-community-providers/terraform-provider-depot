@@ -29,11 +29,20 @@ resource "depot_project" "example" {
 
 ### Optional
 
+- `cache` (Attributes) Cache policy of the project. (see [below for nested schema](#nestedatt--cache))
 - `organization_id` (String) Identifier of the organization.
 
 ### Read-Only
 
 - `id` (String) Identifier of the project.
+
+<a id="nestedatt--cache"></a>
+### Nested Schema for `cache`
+
+Optional:
+
+- `expiry` (Number) Number of days to keep the cache for. **Default** `14`.
+- `size` (Number) Number of bytes to keep in the cache in GB. **Default** `50`.
 
 ## Import
 
