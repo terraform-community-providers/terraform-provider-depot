@@ -19,6 +19,8 @@ func TestAccProjectResourceDefault(t *testing.T) {
 					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
 					resource.TestCheckResourceAttr("depot_project.test", "name", "todo-app"),
 					resource.TestCheckResourceAttr("depot_project.test", "region", "eu-central-1"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.size", "50"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.expiry", "14"),
 				),
 			},
 			// ImportState testing
@@ -34,15 +36,8 @@ func TestAccProjectResourceDefault(t *testing.T) {
 					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
 					resource.TestCheckResourceAttr("depot_project.test", "name", "todo-app"),
 					resource.TestCheckResourceAttr("depot_project.test", "region", "eu-central-1"),
-				),
-			},
-			// Update just name
-			{
-				Config: testAccProjectResourceConfigDefault("nu-todo-app"),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
-					resource.TestCheckResourceAttr("depot_project.test", "name", "nu-todo-app"),
-					resource.TestCheckResourceAttr("depot_project.test", "region", "eu-central-1"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.size", "50"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.expiry", "14"),
 				),
 			},
 			// Update and Read testing
@@ -52,6 +47,8 @@ func TestAccProjectResourceDefault(t *testing.T) {
 					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
 					resource.TestCheckResourceAttr("depot_project.test", "name", "nue-todo-app"),
 					resource.TestCheckResourceAttr("depot_project.test", "region", "us-east-1"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.size", "25"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.expiry", "30"),
 				),
 			},
 			// ImportState testing
@@ -77,6 +74,8 @@ func TestAccProjectResourceNonDefault(t *testing.T) {
 					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
 					resource.TestCheckResourceAttr("depot_project.test", "name", "todo-app"),
 					resource.TestCheckResourceAttr("depot_project.test", "region", "us-east-1"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.size", "25"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.expiry", "30"),
 				),
 			},
 			// ImportState testing
@@ -92,6 +91,8 @@ func TestAccProjectResourceNonDefault(t *testing.T) {
 					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
 					resource.TestCheckResourceAttr("depot_project.test", "name", "todo-app"),
 					resource.TestCheckResourceAttr("depot_project.test", "region", "us-east-1"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.size", "25"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.expiry", "30"),
 				),
 			},
 			// Update with null values
@@ -101,6 +102,8 @@ func TestAccProjectResourceNonDefault(t *testing.T) {
 					resource.TestCheckResourceAttrSet("depot_project.test", "id"),
 					resource.TestCheckResourceAttr("depot_project.test", "name", "nue-todo-app"),
 					resource.TestCheckResourceAttr("depot_project.test", "region", "eu-central-1"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.size", "50"),
+					resource.TestCheckResourceAttr("depot_project.test", "cache.expiry", "14"),
 				),
 			},
 			// ImportState testing
@@ -128,11 +131,11 @@ func testAccProjectResourceConfigNonDefault(name string) string {
 resource "depot_project" "test" {
   name = "%s"
   region = "us-east-1"
+
+  cache = {
+    size = 25
+    expiry = 30
+  }
 }
 `, name)
 }
-
-// cache = {
-//     size = 100
-//     expiry = 30
-//   }

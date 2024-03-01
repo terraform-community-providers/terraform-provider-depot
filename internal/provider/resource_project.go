@@ -8,18 +8,24 @@ import (
 	corev1 "buf.build/gen/go/depot/api/protocolbuffers/go/depot/core/v1"
 	"connectrpc.com/connect"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var _ resource.Resource = &ProjectResource{}
 var _ resource.ResourceWithImportState = &ProjectResource{}
+
+const sizeGB = 1024 * 1024 * 1024
 
 func NewProjectResource() resource.Resource {
 	return &ProjectResource{}
@@ -29,11 +35,22 @@ type ProjectResource struct {
 	client corev1connect.ProjectServiceClient
 }
 
+type ProjectResourceCacheModel struct {
+	Size   types.Int64 `tfsdk:"size"`
+	Expiry types.Int64 `tfsdk:"expiry"`
+}
+
+var cacheAttrTypes = map[string]attr.Type{
+	"size":   types.Int64Type,
+	"expiry": types.Int64Type,
+}
+
 type ProjectResourceModel struct {
 	Id             types.String `tfsdk:"id"`
 	OrganizationId types.String `tfsdk:"organization_id"`
 	Name           types.String `tfsdk:"name"`
 	Region         types.String `tfsdk:"region"`
+	Cache          types.Object `tfsdk:"cache"`
 }
 
 func (r *ProjectResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -81,6 +98,32 @@ func (r *ProjectResource) Schema(ctx context.Context, req resource.SchemaRequest
 					stringvalidator.UTF8LengthAtLeast(1),
 				},
 			},
+			"cache": schema.SingleNestedAttribute{
+				MarkdownDescription: "Cache policy of the project.",
+				Optional:            true,
+				Computed:            true,
+				Default: objectdefault.StaticValue(types.ObjectValueMust(
+					cacheAttrTypes,
+					map[string]attr.Value{
+						"size":   types.Int64Value(50),
+						"expiry": types.Int64Value(14),
+					},
+				)),
+				Attributes: map[string]schema.Attribute{
+					"size": schema.Int64Attribute{
+						MarkdownDescription: "Number of bytes to keep in the cache in GB. **Default** `50`.",
+						Optional:            true,
+						Computed:            true,
+						Default:             int64default.StaticInt64(50),
+					},
+					"expiry": schema.Int64Attribute{
+						MarkdownDescription: "Number of days to keep the cache for. **Default** `14`.",
+						Optional:            true,
+						Computed:            true,
+						Default:             int64default.StaticInt64(14),
+					},
+				},
+			},
 		},
 	}
 }
@@ -107,8 +150,15 @@ func (r *ProjectResource) Configure(ctx context.Context, req resource.ConfigureR
 
 func (r *ProjectResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *ProjectResourceModel
+	var cacheData *ProjectResourceCacheModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(data.Cache.As(ctx, &cacheData, basetypes.ObjectAsOptions{})...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -117,6 +167,10 @@ func (r *ProjectResource) Create(ctx context.Context, req resource.CreateRequest
 	input := corev1.CreateProjectRequest{
 		Name:     data.Name.ValueString(),
 		RegionId: data.Region.ValueString(),
+		CachePolicy: &corev1.CachePolicy{
+			KeepBytes: cacheData.Size.ValueInt64() * sizeGB,
+			KeepDays:  int32(cacheData.Expiry.ValueInt64()),
+		},
 	}
 
 	if !data.OrganizationId.IsNull() {
@@ -138,6 +192,14 @@ func (r *ProjectResource) Create(ctx context.Context, req resource.CreateRequest
 	data.OrganizationId = types.StringValue(response.Msg.Project.OrganizationId)
 	data.Name = types.StringValue(response.Msg.Project.Name)
 	data.Region = types.StringValue(response.Msg.Project.RegionId)
+
+	data.Cache = types.ObjectValueMust(
+		cacheAttrTypes,
+		map[string]attr.Value{
+			"size":   types.Int64Value(response.Msg.Project.CachePolicy.KeepBytes / sizeGB),
+			"expiry": types.Int64Value(int64(response.Msg.Project.CachePolicy.KeepDays)),
+		},
+	)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -167,13 +229,20 @@ func (r *ProjectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	data.Name = types.StringValue(response.Msg.Project.Name)
 	data.Region = types.StringValue(response.Msg.Project.RegionId)
 
+	data.Cache = types.ObjectValueMust(
+		cacheAttrTypes,
+		map[string]attr.Value{
+			"size":   types.Int64Value(response.Msg.Project.CachePolicy.KeepBytes / sizeGB),
+			"expiry": types.Int64Value(int64(response.Msg.Project.CachePolicy.KeepDays)),
+		},
+	)
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *ProjectResourceModel
-
-	var state *ProjectResourceModel
+	var cacheData *ProjectResourceCacheModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
@@ -181,7 +250,7 @@ func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(data.Cache.As(ctx, &cacheData, basetypes.ObjectAsOptions{})...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -189,14 +258,12 @@ func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	input := corev1.UpdateProjectRequest{
 		ProjectId: data.Id.ValueString(),
-	}
-
-	if data.Name.ValueString() != state.Name.ValueString() {
-		input.Name = data.Name.ValueStringPointer()
-	}
-
-	if data.Region.ValueString() != state.Region.ValueString() {
-		input.RegionId = data.Region.ValueStringPointer()
+		Name:      data.Name.ValueStringPointer(),
+		RegionId:  data.Region.ValueStringPointer(),
+		CachePolicy: &corev1.CachePolicy{
+			KeepBytes: cacheData.Size.ValueInt64() * sizeGB,
+			KeepDays:  int32(cacheData.Expiry.ValueInt64()),
+		},
 	}
 
 	response, err := r.client.UpdateProject(ctx, &connect.Request[corev1.UpdateProjectRequest]{
@@ -214,6 +281,14 @@ func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest
 	data.OrganizationId = types.StringValue(response.Msg.Project.OrganizationId)
 	data.Name = types.StringValue(response.Msg.Project.Name)
 	data.Region = types.StringValue(response.Msg.Project.RegionId)
+
+	data.Cache = types.ObjectValueMust(
+		cacheAttrTypes,
+		map[string]attr.Value{
+			"size":   types.Int64Value(response.Msg.Project.CachePolicy.KeepBytes / sizeGB),
+			"expiry": types.Int64Value(int64(response.Msg.Project.CachePolicy.KeepDays)),
+		},
+	)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
